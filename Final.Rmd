@@ -1,0 +1,128 @@
+---
+title: "FinalProject"
+author: "Cesar Lopez"
+date: "2025-12-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction and Code Loading for Coral Reef Data
+
+The dataset that is being used in this RMD file is one that has information on coral reefs. The ecological question being asked here is whether or not species richness varies or differs across different latitudes. In order to work with the data regarding coral reefs to find that answer, we first need to load all of the necessary libraries and data. The ".csv" file is included in the github in case any errors occur when loading the data.
+
+```{r libraries_and_data}
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(MASS)
+library(bbmle)
+CoralData1 <- read.csv("CRCP_Benthic_Cover_Florida_7018_0ee5_9488.csv")
+```
+
+## Transforming the Data
+
+Once all of the data and libraries have been loaded, the first step is to transform the data in such a way that R can read the variables within the data more easily; that way it will be easier to model and plot the data later on. Note that the second line of code was written in order to help reduce the amount of NAs present when modeling the data, and to also help plot the graph using one of the models selected. The data was transformed using the following lines of code.
+
+```{r coral_summary}
+#Transforming the dataset to something more readable
+coral_dataset1_summary <- CoralData1 %>%
+  mutate(latitude=as.numeric(latitude))%>%
+  group_by(PRIMARY_SAMPLE_UNIT,latitude,YEAR,HABITAT_TYPE,Description,PROT) %>%
+  summarise(n_species = length(unique(COVER_CAT_NAME)),
+            total_pct_cover_hard = sum(as.numeric(HARDBOTTOM_P),na.rm = TRUE))
+
+#Filtering out unnecessary values (NA values)
+coral_dataset1_summary <- coral_dataset1_summary %>%
+  filter(is.finite(latitude))
+```
+
+##Fitting the Data on to Models
+
+After the dataset has been transformed in order to make it easier to understand and to easier fit it onto a model, two Generalized Linear Models (GLMs) were made in order to fit the data. The first of the two models is a Poisson-based GLM, while the second is a Negative Binomial GLM.
+
+```{r GLMs}
+#Poisson GLM
+model_lat_pois_coraldat1 <- glm(
+  n_species ~ latitude,
+  data = coral_dataset1_summary,
+  family = poisson()
+)
+
+#Negative Binomial GLM
+model_lat_nb_coraldat1 <- glm.nb(
+  n_species ~ latitude,
+  data = coral_dataset1_summary
+)
+```
+
+##Checking to See Which of the Two Models Fits Better
+
+By using AICtab, it was relatively simple to see which of the two models had the best fit for the data set. In this situation, running the AICtab function showed that the Negative Binomial GLM had a better fit than the Poisson GLM, since dAIC is equal to zero for the Negative Binomial, while it is equal to 13 for the Poisson GLM, so the Negative Binomial GLM will be the one used going forwards.
+
+```{r AICtab}
+AICtab(model_lat_pois_coraldat1, model_lat_nb_coraldat1)
+
+```
+
+##Plotting the GLM Model With ggplot2 (Method 1)
+
+Finally, it is time to plot the graphs themselves. There are two methods in which this can be done: The first of which is by using the base, transformed data itself, as shown with the code below.
+
+```{r Summarized Plot, echo=FALSE}
+#Charted data with the transformed data
+coral_dataset1_summary %>%
+  filter(n_species > 0)%>%
+  ggplot(mapping = aes(x=latitude,y = n_species))+
+  geom_point()+
+  geom_smooth(color="purple",method = "lm")+
+  labs(x = "Latitude", y = "Species Richness", title = "Richness and Latitude: Without Model")
+```
+
+##Plotting the GLM Model With ggplot2 (Method 2)
+
+The second method that can be used to plot the graph is by using the Negative Binomial GLM that was made earlier. First, however, in order to better fit the model onto a graph, prediction data needs to be made in order to more accurately chart the data. The first chunk of coding is for that prediction data, while the second chunk of coding is for the graph itself.
+
+```{r Negative Binom Plot, echo = FALSE}
+#Prediction Data
+new_lat <- data.frame(latitude = seq(min(coral_dataset1_summary$latitude),
+                                     max(coral_dataset1_summary$latitude),
+                                     length.out = 200))
+
+new_lat$pred <- predict(model_lat_nb_coraldat1, newdata = new_lat, type = "response")
+
+
+#Negative Binomial GLM Graph
+ggplot() +
+  geom_point(data = coral_dataset1_summary,
+             aes(x = latitude, y = n_species),
+             alpha = 0.5) +
+  geom_line(data = new_lat,
+            aes(x = latitude, y = pred),
+            color = "blue", size = 1.2) +
+  theme_minimal() +
+  labs(
+    x = "Latitude",
+    y = "Species Richness",
+    title = "Richness and Latitude: Negative Binom GLM"
+  )
+```
+
+##Conclusion
+
+Both of these graphs demonstrate that as the latitude increases, there is a steady decline in the amount of species richness; for example, there is less richness at around 27 in latitude than there is at around 25 in latitude. It makes sense as well, since there are generally more resources available for coral at lower latitudes--not to mention their ideal temperatures as well. One major difference of note, however, is that the Negative Binomial model graph better shows the density of the species richness in each of the points, while the transformed data just gives a generalized look. Using these sets of code, it was possible to figure out the relationship between Species Richness in coral reefs and increasing latitudes.
+
+```{r citations}
+citation()
+citation("tidyverse")
+citation("ggplot2")
+citation("ggpubr")
+citation("MASS")
+citation("bbmle")
+```
+
+##Citations
+
+Above are all of the citations for the R packages and R.
